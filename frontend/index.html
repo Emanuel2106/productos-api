@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <title>Productos - Prueba Técnica</title>
 </head>
+
 <body>
 
   <h2>Lista de Productos</h2>
@@ -14,7 +16,9 @@
         <th>ID</th>
         <th>Nombre</th>
         <th>Precio</th>
+        <th>Descripcion</th>
         <th>Cantidad Disponible</th>
+
       </tr>
     </thead>
     <tbody id="tablaProductos"></tbody>
@@ -23,6 +27,16 @@
   <hr>
 
   <!-- Esta es la parte que debe implementar el candidato -->
+
+
+  <!-- Buscar por ID -->
+  <h3>Buscar producto por ID</h3>
+  <input type="number" id="idInput" placeholder="Ej: 1" />
+  <button onclick="buscarPorId()">Buscar</button>
+
+  <hr>
+
+  <!-- Buscar por Categoría -->
   <h3>Buscar productos por categoría</h3>
   <input type="text" id="categoriaInput" placeholder="Ej: Tecnología" />
   <button onclick="buscarPorCategoria()">Buscar</button>
@@ -39,12 +53,25 @@
       fetch(API_URL)
         .then(response => response.json())
         .then(data => mostrarProductos(data))
-        .catch(error => console.error('Error cargando productos:', error));
+        .catch(error => {
+          console.error('Error cargando productos:', error);
+          document.getElementById('mensaje').textContent =
+            'Error cargando productos iniciales.';
+        });
     }
 
     function mostrarProductos(productos) {
       const tabla = document.getElementById('tablaProductos');
       tabla.innerHTML = '';
+
+      if (!productos || productos.length === 0) {
+        tabla.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align:center;">No hay productos para mostrar.</td>
+          </tr>
+        `;
+        return;
+      }
 
       productos.forEach(p => {
         tabla.innerHTML += `
@@ -52,30 +79,140 @@
             <td>${p.id}</td>
             <td>${p.nombre}</td>
             <td>${p.precio}</td>
+            <td>${p.descripcion}</td>
             <td>${p.cantidadDisponible}</td>
+            
           </tr>
         `;
       });
     }
 
-    // Método que debe implementar el candidato
-    function buscarPorCategoria() {
-      const categoria = document.getElementById('categoriaInput').value.trim();
 
-      if (categoria === '') {
-        document.getElementById('mensaje').textContent = 'Ingrese una categoría.';
+    // Método que implementa la búsqueda por ID
+    function buscarPorId() {
+      const id = document.getElementById('idInput').value.trim();
+      const mensajeEl = document.getElementById('mensaje');
+      mensajeEl.textContent = '';
+
+      if (id === '') {
+        // Si no hay ID, restablecer listado completo
+        cargarProductos();
+        mensajeEl.textContent = 'Se ha restablecido la lista completa de productos.';
         return;
       }
 
-      // Espacio para implementar 
-      // el servicio /productos/categoria/{categoria}
-      // ejemplo       
-	  // fetch(`${API_URL}/categoria/${categoria}`)...
-      // 
-      
-      
-      document.getElementById('mensaje').textContent = 'Funcionalidad pendiente por implementar en la prueba.';
+      if (id === '') {
+        mensajeEl.textContent = 'Ingrese un ID de producto.';
+        return;
+      }
+
+      // Llamar al endpoint GET /productos/{id}
+      fetch(`${API_URL}/${encodeURIComponent(id)}`)
+        .then(async response => {
+          const contentType = response.headers.get('Content-Type') || '';
+          let body;
+          try {
+            body = contentType.includes('application/json')
+              ? await response.json()
+              : null;
+          } catch (_) {
+            body = null;
+          }
+
+          if (!response.ok) {
+            const errorMsg = body && body.detalle
+              ? `${body.error}: ${body.detalle}`
+              : `Error al consultar el producto con ID ${id}`;
+            throw new Error(errorMsg);
+          }
+
+          // body es un solo producto, lo metemos en un array
+          mostrarProductos([body]);
+          mensajeEl.textContent = `Producto con ID ${id} encontrado.`;
+        })
+        .catch(err => {
+          console.error('Error en búsqueda por ID:', err);
+          mensajeEl.textContent = err.message;
+          // opcional: limpiar la tabla
+          document.getElementById('tablaProductos').innerHTML = '';
+
+        });
     }
+
+    // Método que implementa la búsqueda por categoría
+    function buscarPorCategoria() {
+      const mensajeEl = document.getElementById('mensaje');
+      const categoria = document.getElementById('categoriaInput').value.trim();
+
+      mensajeEl.textContent = '';
+
+      if (categoria === '') {
+        // Si no hay categoría, restablecer listado completo
+        cargarProductos();
+        mensajeEl.textContent = 'Se ha restablecido la lista completa de productos.';
+        return;
+      }
+
+      if (categoria === '') {
+        mensajeEl.textContent = 'Ingrese una categoría.';
+        return;
+      }
+
+      // Llamar al endpoint GET /productos/categoria/{categoria}
+      fetch(`${API_URL}/categoria/${encodeURIComponent(categoria)}`)
+        .then(async response => {
+          const contentType = response.headers.get('Content-Type') || '';
+          let body;
+          try {
+            body = contentType.includes('application/json')
+              ? await response.json()
+              : null;
+          } catch (_) {
+            body = null;
+          }
+
+          if (!response.ok) {
+            // Backend devuelve ErrorResponse { error, detalle, timestamp }
+            const errorMsg = body && body.detalle
+              ? `${body.error}: ${body.detalle}`
+              : 'Error consultando productos por categoría.';
+            throw new Error(errorMsg);
+          }
+
+          // body aquí es la lista de productos
+          mostrarProductos(body);
+
+          if (body.length === 0) {
+            mensajeEl.textContent =
+              `No se encontraron productos para la categoría "${categoria}".`;
+          } else {
+            mensajeEl.textContent =
+              `Se encontraron ${body.length} producto(s) para la categoría "${categoria}".`;
+          }
+        })
+        .catch(err => {
+          console.error('Error en búsqueda por categoría:', err);
+          mensajeEl.textContent = err.message;
+          // opcional: limpiar la tabla
+          document.getElementById('tablaProductos').innerHTML = '';
+
+        });
+    }
+
+    // Extra: permitir Enter en el input para buscar
+    document.getElementById('categoriaInput').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        buscarPorCategoria();
+      }
+    });
+
+    // Extra: permitir Enter en el input para buscar
+    document.getElementById('idInput').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        buscarPorId();
+      }
+    });
   </script>
 </body>
+
 </html>
